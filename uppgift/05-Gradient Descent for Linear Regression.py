@@ -14,6 +14,21 @@ from queue import Queue as ThreadQueue
 from multiprocessing import Process, Queue
 
 def gradient_descent(X, y, learning_rate=0.01, iterations=1000):
+    """
+    The original gradient descent function.
+
+    Compute the gradient of the cost function and update the parameters 'theta'
+    using the gradient and the learning rate.
+
+    Parameters:
+    X (np.ndarray): The input data.
+    y (np.ndarray): The target values.
+    learning_rate (float): The learning rate.
+    iterations (int): The number of iterations.
+
+    Returns:
+    np.ndarray: The parameters 'theta' that minimizes the cost function.
+    """
     m, n = X.shape
     theta = np.zeros(n)
     for _ in range(iterations):
@@ -21,12 +36,39 @@ def gradient_descent(X, y, learning_rate=0.01, iterations=1000):
         theta -= learning_rate * gradient
     return theta
 
-def gradient_descent_with_queue(X, y, learning_rate=0.01, iterations=1000, result_queue=None):
+def gradient_descent_with_queue(X,
+                                y,
+                                learning_rate=0.01,
+                                iterations=1000,
+                                result_queue=None):
+    """
+    Compute the gradient of the cost function and update the parameters 'theta'
+    using the gradient and the learning rate. This function is used for
+    multithreading and multiprocessing. The results are put into a queue.
+
+    Parameters:
+    X (np.ndarray): The input data.
+    y (np.ndarray): The target values.
+    learning_rate (float): The learning rate.
+    iterations (int): The number of iterations.
+    result_queue (Queue): The queue to put the results in.
+    """
     theta = gradient_descent(X, y, learning_rate, iterations) 
     if result_queue is not None:
         result_queue.put(theta)
 
 def execute_normal(X, y):
+    """
+    function to execute the original gradient descent function.
+    Printing the execution time.
+
+    Parameters:
+    X (np.ndarray): The input data.
+    y (np.ndarray): The target values.
+
+    Returns:
+    np.ndarray: The parameters 'theta' that minimizes the cost function.
+    """
     start_time = time.time()
     theta = gradient_descent(X, y, 0.01, 1000)
     end_time = time.time()
@@ -34,6 +76,18 @@ def execute_normal(X, y):
     return theta
 
 def execute_multithreading(X, y, num_threads=int(os.cpu_count()/2)):
+    """
+    Function to execute the gradient descent function using multithreading.
+    Printing the execution time.
+
+    Parameters:
+    X (np.ndarray): The input data.
+    y (np.ndarray): The target values.
+    num_threads (int): The number of threads to use.
+
+    Returns:
+    np.ndarray: The parameters 'theta' that minimizes the cost function.
+    """
     threads = []
     X_splits = np.array_split(X, num_threads)
     y_splits = np.array_split(y, num_threads)
@@ -43,17 +97,21 @@ def execute_multithreading(X, y, num_threads=int(os.cpu_count()/2)):
     start_time = time.time()
     for i in range(num_threads):
         # Create and start a new thread for each split of 'X' and 'y'
-        thread = Thread(target=gradient_descent_with_queue, args=(X_splits[i], y_splits[i], 0.01, 1000, result_queue))
+        thread = Thread(target=gradient_descent_with_queue,
+                        args=(X_splits[i],
+                              y_splits[i],
+                              0.01, 1000,
+                              result_queue))
         threads.append(thread)
         thread.start()
-    
+
     # Wait for all threads to finish
     for thread in threads:
         thread.join()
-    
+
     # Collect results from the queue
     results_process = []
-    
+
     for _ in threads:
         results_process.append(result_queue.get())    
 
@@ -62,14 +120,28 @@ def execute_multithreading(X, y, num_threads=int(os.cpu_count()/2)):
 
     end_time = time.time()
     print(f"Multithreading Execution Time: {end_time - start_time:.4f} seconds")
-    
+
     if theta is None:
-        print("Error: No results from threads.")
-        return None  # Or some other appropriate error handling
-    
+        raise ValueError("Error: No results from threads.")
+
     return theta
 
 def execute_multiprocessing(X, y, num_processes=6):
+    """
+    Function to execute the gradient descent function using multiprocessing.
+    Printing the execution time.
+
+    Parameters:
+    X (np.ndarray): The input data.
+    y (np.ndarray): The target values.
+    num_processes (int): The number of processes to use.
+
+    Returns:
+    np.ndarray: The parameters 'theta' that minimizes the cost function.
+
+    Raises:
+    ValueError: If no results are returned from the processes.
+    """
     processes = []
     X_splits = np.array_split(X, num_processes)
     y_splits = np.array_split(y, num_processes)
@@ -79,7 +151,11 @@ def execute_multiprocessing(X, y, num_processes=6):
     start_time = time.time()
     for i in range(num_processes):
         # Create and start a new process for each split of 'X' and 'y'
-        process = Process(target=(gradient_descent_with_queue), args=(X_splits[i], y_splits[i], 0.01, 1000, result_queue))
+        process = Process(target=(gradient_descent_with_queue),
+                          args=(X_splits[i],
+                                y_splits[i],
+                                0.01, 1000,
+                                result_queue))
         processes.append(process)
         process.start()
 
@@ -98,11 +174,10 @@ def execute_multiprocessing(X, y, num_processes=6):
 
     end_time = time.time()
     print(f"Multiprocessing Execution Time: {end_time - start_time:.4f} seconds")
-    
+
     if theta is None:
-        print("Error: No results from processes.")
-        return None  # Or some other appropriate error handling
-    
+        raise ValueError("Error: No results from threads.")
+
     return theta
 
 
@@ -118,17 +193,19 @@ if __name__ == "__main__":
     print(result_multithreading)
     print(result_multiprocessing)
 
+    # adjusting the tolerance for the comparison of the results because of
+    # the proximation needed for the results from parallel processing
     if np.allclose(result_normal, result_multithreading, rtol=1e-4):
         print("multithreading method produce the same result as normal.")
     else:
         print("There is a difference in results for multithreading.")
-    
+
     if np.allclose(result_normal, result_multiprocessing, rtol=1e-4):
         print("multiprocessing method produce the same result as normal.")
     else:
         print("There is a difference in results for multiprocessing. ")
-    
-    
+
+
     if np.allclose(result_multithreading, result_multiprocessing, rtol=1e-4):
         print("multithreading and multiprocessing methods produce the same result.")
     else:
